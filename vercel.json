@@ -2,6 +2,10 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/api/:match*",
+      "destination": "http://221.132.16.77:5050/api/:match*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
