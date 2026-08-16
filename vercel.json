@@ -1,11 +1,8 @@
 {
+  "version": 2,
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "http://221.132.16.77/api/:path*"
-    },
-    {
-      "source": "/:path((?!api/).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
