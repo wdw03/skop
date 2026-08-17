@@ -1,59 +1,64 @@
 export default async function handler(req, res) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', '*');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  const queryPath = req.query.path;
-  const subPath = Array.isArray(queryPath) ? queryPath.join('/') : (queryPath || '');
-
-  // Extract any search query params like ?page=1&search=test
-  const urlObj = new URL(req.url, 'http://localhost');
-  urlObj.searchParams.delete('path');
-  const qs = urlObj.searchParams.toString();
-
-  const targetUrl = `http://221.132.16.77:5050/api/${subPath}${qs ? '?' + qs : ''}`;
-
-  const headers = {};
-  if (req.headers.authorization) {
-    headers['Authorization'] = req.headers.authorization;
+  let subPath = '';
+  if (req.query && req.query.path) {
+    subPath = Array.isArray(req.query.path) ? req.query.path.join('/') : req.query.path;
+  } else if (req.url) {
+    subPath = req.url.split('?')[0].replace(/^\/api\/?/, '');
   }
-  if (req.headers['content-type']) {
-    headers['Content-Type'] = req.headers['content-type'];
-  } else {
-    headers['Content-Type'] = 'application/json';
+
+  let queryString = '';
+  const qIndex = req.url ? req.url.indexOf('?') : -1;
+  if (qIndex !== -1) {
+    const searchParams = new URLSearchParams(req.url.slice(qIndex));
+    searchParams.delete('path');
+    const qs = searchParams.toString();
+    if (qs) queryString = '?' + qs;
   }
+
+  const targetUrl = `https://empleyesbackendrepo-production.up.railway.app/api/${subPath}${queryString}`;
 
   try {
-    const fetchOptions = {
-      method: req.method,
-      headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
     };
-
-    if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
-      fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    if (req.headers.authorization) {
+      headers['Authorization'] = req.headers.authorization;
     }
 
-    const backendRes = await fetch(targetUrl, fetchOptions);
-    const contentType = backendRes.headers.get('content-type') || '';
+    let bodyData = undefined;
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+      bodyData = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    }
 
-    res.status(backendRes.status);
+    const response = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body: bodyData
+    });
 
-    if (contentType.includes('application/json')) {
-      const json = await backendRes.json();
+    const responseText = await response.text();
+    res.status(response.status);
+
+    try {
+      const json = JSON.parse(responseText);
       return res.json(json);
-    } else {
-      const text = await backendRes.text();
-      return res.send(text);
+    } catch {
+      res.setHeader('Content-Type', response.headers.get('content-type') || 'text/plain');
+      return res.send(responseText);
     }
   } catch (err) {
-    return res.status(500).json({
-      message: 'Failed to connect to backend VPS server',
+    return res.status(502).json({
+      message: 'Failed to connect to Railway backend',
       error: err.message
     });
   }
